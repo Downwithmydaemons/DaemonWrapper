@@ -1,0 +1,78 @@
+#!/usr/bin/env python3
+
+import re
+import subprocess
+from termcolor import colored
+
+#################################################
+############# By DownwithmyDaemons ##############
+#################################################
+
+# Regular expression to match each line's components
+pattern = r"(\d+\/tcp)\s+open\s+(\S+)\s+syn-ack\s+ttl\s+\d+\s+(.+)$"
+# This regular expression matches lines that describe open TCP ports, including:
+# - Port (e.g., "80/tcp")
+# - Service name (e.g., "http")
+# - Service description (e.g., "Apache httpd")
+# It captures the port, service, and description for use later in the code.
+
+# Function to run rustscan and capture its output
+def run_rustscan(target):
+    # Running rustscan command and capturing output
+    try:
+        # Using subprocess to run the 'rustscan_binary' command with parameters.
+        # This runs rustscan with the following flags:
+        # - '-t 500' - Target scan time limit
+        # - '-b 1500' - Maximum buffer size
+        # - '--ulimit 70000' - Set ulimit
+        # - '-a target' - Target IP/domain to scan
+        # - '-- -A' - Use aggressive scanning mode
+        result = subprocess.run(
+            ['rustscan_binary', '-a', target, '-n', '--ulimit', '70000', '-t', '5000', '--', '-A', '-Pn'],
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, check=True
+        )
+        # Returning the output of the command (stdout)
+        return result.stdout
+    except subprocess.CalledProcessError as e:
+        # If rustscan fails, print the error message
+        print(f"Error running rustscan: {e.stderr}")
+        return None  # Return None to indicate failure
+
+# Function to convert rustscan output to Markdown table
+def convert_to_markdown(output):
+    # Initialize the Markdown table header with columns: Port, Status, Service, Description
+    table = (colored("| Port       | Status | Service         | Description |\n", 'green'))
+    table += (colored("|------------|--------|-----------------|-------------|\n", 'green'))
+    
+    # Loop through each line of the output (after stripping whitespace and splitting by lines)
+    for line in output.strip().splitlines():
+        # Match the line against the regular expression pattern
+        match = re.match(pattern, line.strip())
+        if match:
+            # If a match is found, extract the components (port, service, description)
+            port = match.group(1)
+            service = match.group(2)
+            description = match.group(3)
+            # Add a new row to the Markdown table
+            table += (colored(f"| {port} | open   | {service}         | {description} |\n", 'red'))
+    
+    # Return the full table as a string
+    return table
+
+# Main program logic
+def main():
+    # Prompt the user for a target IP or domain to scan
+    target = input("Enter the target IP or domain for rustscan: ")
+    
+    # Run rustscan and capture its output
+    output = run_rustscan(target)
+    
+    if output:
+        # If the output is valid (not None), convert it to markdown format
+        markdown_table = convert_to_markdown(output)
+        # Print the Markdown table
+        print(markdown_table)
+
+# Check if the script is being run directly (not imported as a module)
+if __name__ == "__main__":
+    main()
